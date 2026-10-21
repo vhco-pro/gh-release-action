@@ -7,3 +7,8 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+  # requirements.txt pins git-cliff with hashes; Dependabot updates both.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly

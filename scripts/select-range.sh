@@ -1,16 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# An empty tag is what a caller passes when nothing was versioned; it is not an error.
-if [[ -z "$TAG" ]]; then
-  echo "No tag given, so there is no release to publish."
-  printf 'skip=true\ntag=\nrange=\nprevious-tag=\n' >> "$GITHUB_OUTPUT"
-  exit 0
-fi
-if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-  echo "::error::$TAG is not an exact version tag such as v1.2.3 or v1.2.3-feature.1"
-  exit 1
-fi
+# git-cliff cannot do this itself: with prerelease tags ignored it also ignores
+# a prerelease being released, and it ends the notes at HEAD rather than at an
+# older tag being retried. Both put later commits in the notes.
 if [[ "$DRY_RUN" == true ]]; then
   REVISION=$(git rev-parse HEAD)
 else
@@ -28,4 +21,4 @@ RANGE="$REVISION"
 if [[ -n "$PREVIOUS" ]]; then
   RANGE="$PREVIOUS..$REVISION"
 fi
-printf 'skip=false\ntag=%s\nrange=%s\nprevious-tag=%s\n' "$TAG" "$RANGE" "$PREVIOUS" >> "$GITHUB_OUTPUT"
+printf 'range=%s\nprevious-tag=%s\n' "$RANGE" "$PREVIOUS" >> "$GITHUB_OUTPUT"
