@@ -1,0 +1,53 @@
+name: Release
+
+# This action releases itself with itself: tests first, because the tag is the
+# release, then GitVersion tags and `uses: ./` publishes at the commit being
+# tagged. PRs and manual runs default to a dry run that renders the notes.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Render notes without creating a tag or release
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/test.yml
+
+  release:
+    needs: test
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      DRY_RUN: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.dry-run) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Calculate the version and push its exact tag
+        id: version
+        uses: michielvha/gitversion-tag-action@8cf5869816cf71437052ac97d086e00526bf2d89 # v7.0.4
+        with:
+          prefix: v
+          dry-run: ${{ env.DRY_RUN }}
+      - name: Publish the release
+        uses: ./
+        with:
+          tag: v${{ steps.version.outputs.semVer }}
+          dry-run: ${{ env.DRY_RUN }}

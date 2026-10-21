@@ -1,0 +1,74 @@
+name: 'GitHub Release'
+description: 'Publish a GitHub Release with git-cliff notes for an exact version tag.'
+
+# The caller checks out its repository with full history and tags first
+# (fetch-depth: 0, fetch-tags: true): the notes are a range since the previous
+# release tag, so a shallow checkout renders wrong notes rather than failing.
+
+inputs:
+  tag:
+    description: >
+      Exact version tag to release, such as v1.2.3 or v1.2.3-feature.1. A
+      prerelease tag publishes a prerelease that does not become the latest
+      release.
+    required: true
+  config-file:
+    description: 'git-cliff configuration in the caller repository. Empty uses the one shipped with this action.'
+    required: false
+    default: ''
+  dry-run:
+    description: 'Render the notes into the job summary for HEAD, without needing the tag or creating a release.'
+    required: false
+    default: 'false'
+  token:
+    description: 'Token that creates the release. Needs contents: write.'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  release-url:
+    description: 'URL of the release, empty on a dry run'
+    value: ${{ steps.publish.outputs.release-url }}
+  previous-tag:
+    description: 'Stable release tag the notes start from, empty for a first release'
+    value: ${{ steps.range.outputs.previous-tag }}
+
+runs:
+  using: composite
+  steps:
+    - name: Select the release range
+      id: range
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+        DRY_RUN: ${{ inputs.dry-run }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/select-range.sh"
+
+    - name: Install verified git-cliff
+      shell: bash
+      run: bash "$GITHUB_ACTION_PATH/scripts/install-git-cliff.sh"
+
+    - name: Render the notes
+      id: notes
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+        RANGE: ${{ steps.range.outputs.range }}
+        PREVIOUS_TAG: ${{ steps.range.outputs.previous-tag }}
+        CONFIG_FILE: ${{ inputs.config-file || format('{0}/cliff.toml', github.action_path) }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/render-notes.sh"
+
+    - name: Publish the release
+      id: publish
+      if: ${{ inputs.dry-run != 'true' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        GH_REPO: ${{ github.repository }}
+        TAG: ${{ inputs.tag }}
+        NOTES: ${{ steps.notes.outputs.file }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/publish-release.sh"
+
+branding:
+  icon: tag
+  color: blue
