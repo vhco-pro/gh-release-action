@@ -68,16 +68,21 @@ cp "$SOURCE_ROOT/tests/mock-gh.sh" "$TEMP/bin/gh"
 chmod 755 "$TEMP/bin/gh"
 export PATH="$TEMP/bin:$PATH" GH_LOG="$TEMP/gh-log" GH_REPO=example/project NOTES="$TEMP/release-notes.md"
 export RELEASE_CASE=existing TAG=v2.0.0
-: > "$GH_LOG"
+: > "$GH_LOG"; : > "$GITHUB_OUTPUT"
 bash "$SOURCE_ROOT/scripts/publish-release.sh"
-grep -q '^release view v2.0.0 ' "$GH_LOG"
+grep -q '^api repos/example/project/releases/tags/v2.0.0 ' "$GH_LOG"
 if grep -Eq '^release (edit|create) ' "$GH_LOG"; then exit 1; fi
+grep -q '^release-url=https://github.com/example/project/releases/tag/v2.0.0$' "$GITHUB_OUTPUT"
 export RELEASE_CASE=absent TAG=v2.1.0-preview.1
-: > "$GH_LOG"
+: > "$GH_LOG"; : > "$GITHUB_OUTPUT"
 bash "$SOURCE_ROOT/scripts/publish-release.sh"
 grep -q '^release create v2.1.0-preview.1 .*--prerelease --latest=false' "$GH_LOG"
+grep -q '^release-url=https://github.com/example/project/releases/tag/v2.1.0-preview.1$' "$GITHUB_OUTPUT"
+# Only a 404 means absent: any other lookup failure must not create a release.
 export RELEASE_CASE=failure
+: > "$GH_LOG"
 if bash "$SOURCE_ROOT/scripts/publish-release.sh" >/dev/null 2>&1; then exit 1; fi
+if grep -q '^release create ' "$GH_LOG"; then exit 1; fi
 export -f git
 export FAIL_TAG_LIST=true
 if git for-each-ref; then exit 1; fi

@@ -5,11 +5,15 @@ FLAGS=()
 if [[ "$TAG" == *-* ]]; then
   FLAGS+=(--prerelease --latest=false)
 fi
-RELEASES=$(gh api "repos/$GH_REPO/releases" --paginate --slurp)
-if printf '%s' "$RELEASES" | jq -e --arg tag "$TAG" 'any(.[][]; .tag_name == $tag)' >/dev/null; then
+# Look the release up by its tag: the release list can come back incomplete,
+# and only a 404 means there is no release yet.
+ERRORS=$(mktemp)
+if URL=$(gh api "repos/$GH_REPO/releases/tags/$TAG" --jq .html_url 2>"$ERRORS"); then
   echo "Release $TAG already exists; preserving its published notes."
+elif grep -q 'HTTP 404' "$ERRORS"; then
+  URL=$(gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$NOTES" "${FLAGS[@]}")
 else
-  gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$NOTES" "${FLAGS[@]}"
+  cat "$ERRORS" >&2
+  exit 1
 fi
-URL=$(gh release view "$TAG" --json url --jq .url)
 printf 'release-url=%s\n' "$URL" >> "$GITHUB_OUTPUT"
