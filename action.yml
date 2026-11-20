@@ -20,6 +20,13 @@ inputs:
     description: 'Render the notes into the job summary for HEAD, without needing the tag or creating a release.'
     required: false
     default: 'false'
+  files:
+    description: >
+      Files to attach, one path per line, relative to the workspace, with no glob
+      expansion. Every path must exist. An existing release must already hold exactly
+      these file names; no file is ever replaced. Empty attaches nothing.
+    required: false
+    default: ''
   token:
     description: 'Token that creates the release. Needs contents: write.'
     required: false
@@ -67,6 +74,7 @@ runs:
         GH_REPO: ${{ github.repository }}
         TAG: ${{ inputs.tag }}
         NOTES: ${{ steps.notes.outputs.file }}
+        FILES: ${{ inputs.files }}
       run: bash "$GITHUB_ACTION_PATH/scripts/publish-release.sh"
 
 branding:
