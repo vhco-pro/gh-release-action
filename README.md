@@ -20,6 +20,8 @@ direct use: this repository releases itself with `uses: ./`.
 | `dry-run: 'true'` | Notes for `HEAD` go to the job summary; no release, the tag need not exist |
 | Prerelease tag | A prerelease that does not become the latest release |
 | Release already exists | Its notes are kept; nothing is replaced, so a retry is safe |
+| `files` set, no release yet | One `gh release create` attaches every file; if an upload fails, gh removes the hidden draft, so no release appears with files missing |
+| `files` set, release exists | Kept as it is when it holds exactly those file names; any other set fails and no file is replaced |
 
 The notes cover the commits since the previous stable `vX.Y.Z` tag that is an
 ancestor of the release, and end at the release tag even when the branch has

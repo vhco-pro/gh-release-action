@@ -70,7 +70,7 @@ export PATH="$TEMP/bin:$PATH" GH_LOG="$TEMP/gh-log" GH_REPO=example/project NOTE
 export RELEASE_CASE=existing TAG=v2.0.0
 : > "$GH_LOG"; : > "$GITHUB_OUTPUT"
 bash "$SOURCE_ROOT/scripts/publish-release.sh"
-grep -q '^api repos/example/project/releases/tags/v2.0.0 ' "$GH_LOG"
+grep -q '^api repos/example/project/releases/tags/v2.0.0$' "$GH_LOG"
 if grep -Eq '^release (edit|create) ' "$GH_LOG"; then exit 1; fi
 grep -q '^release-url=https://github.com/example/project/releases/tag/v2.0.0$' "$GITHUB_OUTPUT"
 export RELEASE_CASE=absent TAG=v2.1.0-preview.1
@@ -83,6 +83,38 @@ export RELEASE_CASE=failure
 : > "$GH_LOG"
 if bash "$SOURCE_ROOT/scripts/publish-release.sh" >/dev/null 2>&1; then exit 1; fi
 if grep -q '^release create ' "$GH_LOG"; then exit 1; fi
+# files: attach files in one create call, reuse a release with the same file names,
+# refuse any other set, and fail on a missing path. gh removes its hidden draft when an
+# upload fails only for a single non-draft create with the files, so the action must
+# never pass --draft or call gh release upload.
+printf 'deb\n' > "$TEMP/pds_3.0.0_all.deb"
+printf 'exe\n' > "$TEMP/PDS-3.0.0.exe"
+export FILES="$TEMP/pds_3.0.0_all.deb
+$TEMP/PDS-3.0.0.exe"
+export RELEASE_CASE=absent TAG=v3.0.0
+: > "$GH_LOG"; : > "$GITHUB_OUTPUT"
+bash "$SOURCE_ROOT/scripts/publish-release.sh"
+test "$(grep -c '^release create ' "$GH_LOG")" -eq 1
+grep -q "^release create v3.0.0 $TEMP/pds_3.0.0_all.deb $TEMP/PDS-3.0.0.exe " "$GH_LOG"
+if grep -Eq -- '--draft|^release upload ' "$GH_LOG"; then exit 1; fi
+grep -q '^release-url=https://github.com/example/project/releases/tag/v3.0.0$' "$GITHUB_OUTPUT"
+export RELEASE_CASE=existing RELEASE_ASSETS='PDS-3.0.0.exe pds_3.0.0_all.deb'
+: > "$GH_LOG"; : > "$GITHUB_OUTPUT"
+bash "$SOURCE_ROOT/scripts/publish-release.sh"
+if grep -Eq '^release (create|upload|edit) ' "$GH_LOG"; then exit 1; fi
+grep -q '^release-url=https://github.com/example/project/releases/tag/v3.0.0$' "$GITHUB_OUTPUT"
+export RELEASE_ASSETS='pds_3.0.0_all.deb'
+: > "$GH_LOG"
+if bash "$SOURCE_ROOT/scripts/publish-release.sh" > "$TEMP/out" 2>&1; then exit 1; fi
+grep -q 'different files' "$TEMP/out"
+if grep -Eq '^release (create|upload|edit) ' "$GH_LOG"; then exit 1; fi
+export RELEASE_CASE=absent FILES="$TEMP/pds_3.0.0_all.deb
+$TEMP/missing.exe"
+: > "$GH_LOG"
+if bash "$SOURCE_ROOT/scripts/publish-release.sh" > "$TEMP/out" 2>&1; then exit 1; fi
+grep -q "$TEMP/missing.exe" "$TEMP/out"
+if grep -q '^release create ' "$GH_LOG"; then exit 1; fi
+unset FILES RELEASE_ASSETS
 export -f git
 export FAIL_TAG_LIST=true
 if git for-each-ref; then exit 1; fi
@@ -92,4 +124,4 @@ if TAG=v2.0.0 DRY_RUN=false bash "$SOURCE_ROOT/scripts/select-range.sh"; then
 fi
 unset FAIL_TAG_LIST
 unset -f git
-printf 'Release scripts pass: compact consumer notes, dependency/breaking entries, maintenance fallback, preserved existing notes, first release, dry-run, retry bounds, prereleases, and API/Git failures.\n'
+printf 'Release scripts pass: compact consumer notes, dependency/breaking entries, maintenance fallback, preserved existing notes, first release, dry-run, retry bounds, prereleases, attached files, and API/Git failures.\n'
